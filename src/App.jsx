@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  LineChart, Line, PieChart, Pie, Cell, Legend,
 } from 'recharts'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 const ENDPOINT = `${API_BASE}/api/analytics/public-dashboard`
 const GREEN = '#16a34a'
-const LIGHT_GREEN = '#22c55e'
 const PIE_COLORS = ['#16a34a', '#4ade80', '#86efac']
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -38,15 +37,18 @@ function timeAgo(iso) {
   return `${Math.floor(diff / 3600)}h ago`
 }
 
+function fmtDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
-function KPICard({ title, value, sub, growth, prefix = '', suffix = '' }) {
+function KPICard({ title, value, sub, growth, suffix = '' }) {
   return (
     <div style={styles.card}>
       <div style={styles.cardTitle}>{title}</div>
-      <div style={styles.cardValue}>
-        {prefix}{fmt(value)}{suffix}
-      </div>
+      <div style={styles.cardValue}>{fmt(value)}{suffix}</div>
       {(sub || growth !== undefined) && (
         <div style={styles.cardFooter}>
           {sub && <span style={styles.cardSub}>{sub}</span>}
@@ -57,6 +59,20 @@ function KPICard({ title, value, sub, growth, prefix = '', suffix = '' }) {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function AdoptionBar({ label, pct, users, color }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>{label}</span>
+        <span style={{ fontSize: 14, color: '#6b7280' }}>{users} users · {pct}%</span>
+      </div>
+      <div style={{ background: '#f3f4f6', borderRadius: 99, height: 10, overflow: 'hidden' }}>
+        <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.6s ease' }} />
+      </div>
     </div>
   )
 }
@@ -113,6 +129,15 @@ export default function App() {
       ].filter((d) => d.value > 0)
     : []
 
+  const dauData = data?.trend?.dau_14d?.map((d) => ({
+    date: fmtDate(d.date),
+    users: d.users,
+  })) || []
+
+  const adoption = data?.adoption_30d
+  const engagement = data?.engagement
+  const retention = data?.retention
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -130,13 +155,9 @@ export default function App() {
           </div>
           <div style={styles.headerRight}>
             {fetchedAt && (
-              <span style={styles.lastUpdated}>
-                Updated {timeAgo(fetchedAt)}
-              </span>
+              <span style={styles.lastUpdated}>Updated {timeAgo(fetchedAt)}</span>
             )}
-            <button onClick={fetchData} style={styles.refreshBtn} title="Refresh">
-              ↻
-            </button>
+            <button onClick={fetchData} style={styles.refreshBtn} title="Refresh">↻</button>
           </div>
         </div>
       </header>
@@ -159,7 +180,7 @@ export default function App() {
 
         {data && (
           <>
-            {/* ── KPIs ── */}
+            {/* ── Users ── */}
             <SectionHeader>Users</SectionHeader>
             <div style={styles.grid3}>
               <KPICard
@@ -181,31 +202,62 @@ export default function App() {
               />
             </div>
 
+            {/* ── Today ── */}
             <SectionHeader>Today</SectionHeader>
-            <div style={styles.grid2}>
+            <div style={styles.grid4}>
+              <KPICard title="Active Users" value={data.active.today} />
+              <KPICard title="Actions Today" value={data.active.today_events} />
               <KPICard
-                title="Active Users Today"
-                value={data.active.today}
+                title="Avg Actions / MAU"
+                value={engagement?.avg_actions_per_mau ?? '—'}
+                sub="last 30 days"
               />
               <KPICard
-                title="Events Today"
-                value={data.active.today_events}
+                title="WoW Retention"
+                value={retention?.wow_retention_pct ?? 0}
+                suffix="%"
+                sub={`${retention?.wow_retained_users ?? 0} users retained`}
               />
             </div>
 
-            <SectionHeader>Subscriptions</SectionHeader>
-            <div style={styles.grid3}>
-              <KPICard title="Active Subscribers" value={data.subscriptions.active} />
-              <KPICard title="Monthly Plan" value={data.subscriptions.monthly} />
-              <KPICard title="Annual Plan" value={data.subscriptions.annual} />
+            {/* ── DAU Trend ── */}
+            <SectionHeader>Daily Active Users — Last 14 Days</SectionHeader>
+            <div style={styles.card}>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={dauData} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }} interval={1} />
+                  <YAxis tick={{ fontSize: 12, fill: '#6b7280' }} width={32} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 13, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                    formatter={(v) => [v, 'Active Users']}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="users"
+                    stroke={GREEN}
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: GREEN }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
 
-            {/* ── Charts ── */}
-            <SectionHeader>Feature Usage — Last 30 Days</SectionHeader>
+            {/* ── Feature Adoption ── */}
+            <SectionHeader>Feature Adoption — % of MAU (30d)</SectionHeader>
+            <div style={styles.card}>
+              <AdoptionBar label="Food Scans" pct={adoption?.scanning_pct ?? 0} users={adoption?.scanning_users ?? 0} color="#16a34a" />
+              <AdoptionBar label="AI Coach" pct={adoption?.coaching_pct ?? 0} users={adoption?.coaching_users ?? 0} color="#22c55e" />
+              <AdoptionBar label="Recipes" pct={adoption?.recipes_pct ?? 0} users={adoption?.recipes_users ?? 0} color="#4ade80" />
+              <AdoptionBar label="Challenges" pct={adoption?.challenges_pct ?? 0} users={adoption?.challenges_users ?? 0} color="#86efac" />
+            </div>
+
+            {/* ── Feature Usage Charts ── */}
+            <SectionHeader>Feature Volume — Last 30 Days</SectionHeader>
             <div style={styles.chartRow}>
-              {/* Bar chart */}
               <div style={{ ...styles.card, flex: 2, minWidth: 0 }}>
-                <div style={styles.chartTitle}>Activity by Feature</div>
+                <div style={styles.chartTitle}>Total Actions by Feature</div>
                 <ResponsiveContainer width="100%" height={240}>
                   <BarChart data={featureData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -224,8 +276,7 @@ export default function App() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Pie chart */}
-              {subData.length > 0 && (
+              {subData.length > 0 ? (
                 <div style={{ ...styles.card, flex: 1, minWidth: 220 }}>
                   <div style={styles.chartTitle}>Subscription Split</div>
                   <ResponsiveContainer width="100%" height={240}>
@@ -249,30 +300,34 @@ export default function App() {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-              )}
-
-              {subData.length === 0 && (
+              ) : (
                 <div style={{ ...styles.card, flex: 1, minWidth: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <p style={{ color: '#9ca3af', fontSize: 13 }}>No active subscriptions yet</p>
                 </div>
               )}
             </div>
 
-            {/* ── Stats table ── */}
+            {/* ── Feature Breakdown Table ── */}
             <SectionHeader>Feature Breakdown</SectionHeader>
             <div style={styles.card}>
               <table style={styles.table}>
                 <thead>
                   <tr>
                     <th style={styles.th}>Feature</th>
-                    <th style={styles.th}>Events (30d)</th>
-                    <th style={styles.th}>% of Total</th>
+                    <th style={styles.th}>Actions (30d)</th>
+                    <th style={styles.th}>Users (30d)</th>
+                    <th style={styles.th}>% of Total Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {featureData.map((row, i) => {
-                    const total = featureData.reduce((s, r) => s + r.value, 0)
-                    const pct = total > 0 ? ((row.value / total) * 100).toFixed(1) : '0.0'
+                  {[
+                    { name: 'Food Scans', value: data.features_30d.scans, users: adoption?.scanning_users ?? 0, fill: '#16a34a' },
+                    { name: 'Challenges', value: data.features_30d.challenges, users: adoption?.challenges_users ?? 0, fill: '#22c55e' },
+                    { name: 'Recipes', value: data.features_30d.recipes, users: adoption?.recipes_users ?? 0, fill: '#4ade80' },
+                    { name: 'AI Coach', value: data.features_30d.coach, users: adoption?.coaching_users ?? 0, fill: '#86efac' },
+                  ].map((row, i) => {
+                    const total = data.features_30d.total_actions || 1
+                    const pct = ((row.value / total) * 100).toFixed(1)
                     return (
                       <tr key={row.name} style={i % 2 === 0 ? styles.trEven : undefined}>
                         <td style={styles.td}>
@@ -280,6 +335,7 @@ export default function App() {
                           {row.name}
                         </td>
                         <td style={styles.tdNum}>{row.value.toLocaleString()}</td>
+                        <td style={styles.tdNum}>{row.users}</td>
                         <td style={styles.tdNum}>
                           <div style={styles.barWrap}>
                             <div style={{ ...styles.barFill, width: `${pct}%`, background: row.fill }} />
@@ -293,9 +349,16 @@ export default function App() {
               </table>
             </div>
 
-            {/* Footer */}
+            {/* ── Subscriptions ── */}
+            <SectionHeader>Subscriptions</SectionHeader>
+            <div style={styles.grid3}>
+              <KPICard title="Active Subscribers" value={data.subscriptions.active} />
+              <KPICard title="Monthly Plan" value={data.subscriptions.monthly} />
+              <KPICard title="Annual Plan" value={data.subscriptions.annual} />
+            </div>
+
             <p style={styles.footer}>
-              Data from Lentil staging API · Auto-refreshes every 5 minutes ·{' '}
+              Lentil Admin · Auto-refreshes every 5 minutes ·{' '}
               {fetchedAt && new Date(fetchedAt).toLocaleString()}
             </p>
           </>
@@ -308,10 +371,7 @@ export default function App() {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = {
-  page: {
-    minHeight: '100vh',
-    background: '#f0fdf4',
-  },
+  page: { minHeight: '100vh', background: '#f0fdf4' },
   header: {
     background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
     padding: '20px 0',
@@ -328,25 +388,10 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  headerLeft: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
-  logo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-  },
-  logoLeaf: {
-    fontSize: 26,
-  },
-  logoText: {
-    color: '#fff',
-    fontWeight: 800,
-    fontSize: 22,
-    letterSpacing: '-0.5px',
-  },
+  headerLeft: { display: 'flex', flexDirection: 'column', gap: 4 },
+  logo: { display: 'flex', alignItems: 'center', gap: 10 },
+  logoLeaf: { fontSize: 26 },
+  logoText: { color: '#fff', fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px' },
   logoBadge: {
     background: 'rgba(255,255,255,0.2)',
     color: '#fff',
@@ -357,20 +402,9 @@ const styles = {
     letterSpacing: '0.5px',
     textTransform: 'uppercase',
   },
-  headerTagline: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 13,
-    marginLeft: 36,
-  },
-  headerRight: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  },
-  lastUpdated: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 13,
-  },
+  headerTagline: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginLeft: 36 },
+  headerRight: { display: 'flex', alignItems: 'center', gap: 12 },
+  lastUpdated: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
   refreshBtn: {
     background: 'rgba(255,255,255,0.15)',
     border: 'none',
@@ -383,13 +417,8 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'background 0.2s',
   },
-  main: {
-    maxWidth: 1200,
-    margin: '0 auto',
-    padding: '32px 24px 64px',
-  },
+  main: { maxWidth: 1200, margin: '0 auto', padding: '32px 24px 64px' },
   sectionHeader: {
     fontSize: 13,
     fontWeight: 600,
@@ -399,65 +428,22 @@ const styles = {
     marginBottom: 12,
     marginTop: 32,
   },
-  grid3: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: 16,
-  },
-  grid2: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: 16,
-  },
+  grid3: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 },
+  grid4: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 },
   card: {
     background: '#fff',
     borderRadius: 16,
     padding: '20px 24px',
     boxShadow: '0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)',
   },
-  cardTitle: {
-    fontSize: 13,
-    fontWeight: 500,
-    color: '#6b7280',
-    marginBottom: 8,
-  },
-  cardValue: {
-    fontSize: 32,
-    fontWeight: 800,
-    color: '#111827',
-    lineHeight: 1.1,
-  },
-  cardFooter: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    flexWrap: 'wrap',
-  },
-  cardSub: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  cardGrowth: {
-    fontSize: 13,
-    fontWeight: 600,
-  },
-  chartRow: {
-    display: 'flex',
-    gap: 16,
-    flexWrap: 'wrap',
-  },
-  chartTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: '#374151',
-    marginBottom: 16,
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: 14,
-  },
+  cardTitle: { fontSize: 13, fontWeight: 500, color: '#6b7280', marginBottom: 8 },
+  cardValue: { fontSize: 32, fontWeight: 800, color: '#111827', lineHeight: 1.1 },
+  cardFooter: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  cardSub: { fontSize: 12, color: '#9ca3af' },
+  cardGrowth: { fontSize: 13, fontWeight: 600 },
+  chartRow: { display: 'flex', gap: 16, flexWrap: 'wrap' },
+  chartTitle: { fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 16 },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
   th: {
     textAlign: 'left',
     padding: '8px 12px',
@@ -468,47 +454,13 @@ const styles = {
     letterSpacing: '0.5px',
     borderBottom: '1px solid #f3f4f6',
   },
-  td: {
-    padding: '12px 12px',
-    color: '#374151',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-  },
-  tdNum: {
-    padding: '12px 12px',
-    color: '#374151',
-    fontVariantNumeric: 'tabular-nums',
-  },
-  trEven: {
-    background: '#fafafa',
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: '50%',
-    flexShrink: 0,
-  },
-  barWrap: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    minWidth: 140,
-  },
-  barFill: {
-    height: 8,
-    borderRadius: 4,
-    minWidth: 4,
-    maxWidth: 100,
-    transition: 'width 0.4s ease',
-  },
-  centerMsg: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 300,
-  },
+  td: { padding: '12px 12px', color: '#374151', display: 'flex', alignItems: 'center', gap: 8 },
+  tdNum: { padding: '12px 12px', color: '#374151', fontVariantNumeric: 'tabular-nums' },
+  trEven: { background: '#fafafa' },
+  dot: { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
+  barWrap: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 140 },
+  barFill: { height: 8, borderRadius: 4, minWidth: 4, maxWidth: 100, transition: 'width 0.4s ease' },
+  centerMsg: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300 },
   spinner: {
     width: 40,
     height: 40,
@@ -538,10 +490,5 @@ const styles = {
     fontSize: 14,
     fontWeight: 500,
   },
-  footer: {
-    marginTop: 48,
-    fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'center',
-  },
+  footer: { marginTop: 48, fontSize: 12, color: '#9ca3af', textAlign: 'center' },
 }
