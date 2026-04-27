@@ -137,6 +137,7 @@ export default function App() {
   const adoption = data?.adoption_30d
   const engagement = data?.engagement
   const retention = data?.retention
+  const buckets = data?.buckets
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -202,21 +203,45 @@ export default function App() {
               />
             </div>
 
-            {/* ── Today ── */}
-            <SectionHeader>Today</SectionHeader>
-            <div style={styles.grid4}>
-              <KPICard title="Active Users" value={data.active.today} />
-              <KPICard title="Actions Today" value={data.active.today_events} />
-              <KPICard
-                title="Avg Actions / MAU"
-                value={engagement?.avg_actions_per_mau ?? '—'}
-                sub="last 30 days"
-              />
+            {/* ── Activity Buckets ── */}
+            <SectionHeader>Activity Breakdown</SectionHeader>
+            <div style={styles.card}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Period</th>
+                    <th style={styles.th}>Active Users</th>
+                    <th style={styles.th}>Total Actions</th>
+                    <th style={styles.th}>Avg Actions / User</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { label: 'Today', data: buckets?.today, color: '#16a34a' },
+                    { label: 'This Week', data: buckets?.week, color: '#22c55e' },
+                    { label: 'This Month', data: buckets?.month, color: '#4ade80' },
+                  ].map(({ label, data: b, color }, i) => (
+                    <tr key={label} style={i % 2 === 0 ? styles.trEven : undefined}>
+                      <td style={styles.td}>
+                        <span style={{ ...styles.dot, background: color }} />
+                        <strong>{label}</strong>
+                      </td>
+                      <td style={styles.tdNum}>{fmt(b?.active_users ?? 0)}</td>
+                      <td style={styles.tdNum}>{fmt(b?.actions ?? 0)}</td>
+                      <td style={styles.tdNum}>{b?.avg_actions ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Retention ── */}
+            <div style={{ ...styles.grid4, marginTop: 16 }}>
               <KPICard
                 title="WoW Retention"
                 value={retention?.wow_retention_pct ?? 0}
                 suffix="%"
-                sub={`${retention?.wow_retained_users ?? 0} users retained`}
+                sub={`${retention?.wow_retained_users ?? 0} users came back this week`}
               />
             </div>
 
