@@ -236,12 +236,19 @@ export default function App() {
             </div>
 
             {/* ── Retention ── */}
-            <div style={{ ...styles.grid4, marginTop: 16 }}>
+            <SectionHeader>Retention</SectionHeader>
+            <div style={styles.grid2}>
               <KPICard
                 title="WoW Retention"
                 value={retention?.wow_retention_pct ?? 0}
                 suffix="%"
                 sub={`${retention?.wow_retained_users ?? 0} users came back this week`}
+              />
+              <KPICard
+                title="MoM Retention"
+                value={retention?.mom_retention_pct ?? 0}
+                suffix="%"
+                sub={`${retention?.mom_retained_users ?? 0} users came back this month`}
               />
             </div>
 
