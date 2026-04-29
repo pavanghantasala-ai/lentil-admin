@@ -77,6 +77,43 @@ function AdoptionBar({ label, pct, users, color }) {
   )
 }
 
+function TopUsersTable({ users, title }) {
+  if (!users || users.length === 0) return null
+  return (
+    <div style={styles.card}>
+      <div style={styles.chartTitle}>{title}</div>
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={styles.th}>#</th>
+            <th style={styles.th}>Name</th>
+            <th style={styles.th}>Email</th>
+            <th style={styles.th}>Total</th>
+            <th style={styles.th}>Scans</th>
+            <th style={styles.th}>Coach</th>
+            <th style={styles.th}>Recipes</th>
+            <th style={styles.th}>Challenges</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((u, i) => (
+            <tr key={u.user_id} style={i % 2 === 0 ? styles.trEven : undefined}>
+              <td style={styles.tdNum}>{i + 1}</td>
+              <td style={styles.tdName}>{u.name}</td>
+              <td style={styles.tdEmail}>{u.email}</td>
+              <td style={{ ...styles.tdNum, fontWeight: 700 }}>{u.total}</td>
+              <td style={styles.tdNum}>{u.scans}</td>
+              <td style={styles.tdNum}>{u.coach}</td>
+              <td style={styles.tdNum}>{u.recipes}</td>
+              <td style={styles.tdNum}>{u.challenges}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function SectionHeader({ children }) {
   return <h2 style={styles.sectionHeader}>{children}</h2>
 }
@@ -138,6 +175,7 @@ export default function App() {
   const engagement = data?.engagement
   const retention = data?.retention
   const buckets = data?.buckets
+  const topUsers = data?.top_users
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -284,6 +322,13 @@ export default function App() {
               <AdoptionBar label="Recipes" pct={adoption?.recipes_pct ?? 0} users={adoption?.recipes_users ?? 0} color="#4ade80" />
               <AdoptionBar label="Challenges" pct={adoption?.challenges_pct ?? 0} users={adoption?.challenges_users ?? 0} color="#86efac" />
             </div>
+
+            {/* ── Top Users ── */}
+            <SectionHeader>Top Weekly Active Users</SectionHeader>
+            <TopUsersTable users={topUsers?.weekly} title="Last 7 Days" />
+
+            <SectionHeader>Top Monthly Active Users</SectionHeader>
+            <TopUsersTable users={topUsers?.monthly} title="Last 30 Days" />
 
             {/* ── Feature Usage Charts ── */}
             <SectionHeader>Feature Volume — Last 30 Days</SectionHeader>
@@ -488,6 +533,8 @@ const styles = {
   },
   td: { padding: '12px 12px', color: '#374151', display: 'flex', alignItems: 'center', gap: 8 },
   tdNum: { padding: '12px 12px', color: '#374151', fontVariantNumeric: 'tabular-nums' },
+  tdName: { padding: '12px 12px', color: '#374151', fontWeight: 500 },
+  tdEmail: { padding: '12px 12px', color: '#6b7280', fontSize: 13 },
   trEven: { background: '#fafafa' },
   dot: { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
   barWrap: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 140 },
